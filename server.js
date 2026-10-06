@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 
 const app = express();
 
@@ -11,10 +12,8 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP (100% Safe & Error-Free)
+// FIREBASE ADMIN SETUP (Modular & 100% Working)
 // ============================================================
-
-let messaging = null;
 
 try {
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
@@ -25,10 +24,9 @@ try {
         }
         privateKey = privateKey.replace(/\\n/g, '\n');
 
-        // Safely check if admin.apps exists before checking length
-        if (!admin.apps || admin.apps.length === 0) {
-            admin.initializeApp({
-                credential: admin.credential.cert({
+        if (!getApps().length) {
+            initializeApp({
+                credential: cert({
                     projectId: process.env.FIREBASE_PROJECT_ID.trim(),
                     clientEmail: process.env.FIREBASE_CLIENT_EMAIL.trim(),
                     privateKey: privateKey.trim()
@@ -36,7 +34,6 @@ try {
             });
         }
         
-        messaging = admin.messaging();
         console.log('Firebase Admin initialized successfully!');
     } else {
         console.warn('⚠️ Warning: Firebase environment variables are missing.');
@@ -44,7 +41,6 @@ try {
 } catch (error) {
     console.error('Firebase Admin initialization failed:', error.message);
 }
-
 // ============================================================
 // MYSQL CONFIG
 // ============================================================
