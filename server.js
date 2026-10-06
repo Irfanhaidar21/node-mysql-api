@@ -11,7 +11,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP (Safe & Error-Free)
+// FIREBASE ADMIN SETUP (100% Safe & Error-Free)
 // ============================================================
 
 let messaging = null;
@@ -20,13 +20,13 @@ try {
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
         let privateKey = process.env.FIREBASE_PRIVATE_KEY;
         
-        // Remove surrounding quotes if accidentally added in Render
         if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
             privateKey = privateKey.slice(1, -1);
         }
         privateKey = privateKey.replace(/\\n/g, '\n');
 
-        if (!admin.apps.length) {
+        // Safely check if admin.apps exists before checking length
+        if (!admin.apps || admin.apps.length === 0) {
             admin.initializeApp({
                 credential: admin.credential.cert({
                     projectId: process.env.FIREBASE_PROJECT_ID.trim(),
@@ -39,12 +39,11 @@ try {
         messaging = admin.messaging();
         console.log('Firebase Admin initialized successfully!');
     } else {
-        console.warn('⚠️ Warning: Firebase environment variables are missing. Push notifications will be disabled.');
+        console.warn('⚠️ Warning: Firebase environment variables are missing.');
     }
 } catch (error) {
     console.error('Firebase Admin initialization failed:', error.message);
 }
-
 
 // ============================================================
 // MYSQL CONFIG
