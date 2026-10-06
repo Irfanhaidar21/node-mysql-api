@@ -1,20 +1,25 @@
 const express = require('express');
+const cors = require('cors'); // 1. CORS require karyu
 const mysql = require('mysql2');
 
 const app = express();
+
+// 2. CORS middleware enable karyu jethi frontend thi API call thaye tyare error na aave
+app.use(cors());
 app.use(express.json());
 
-const PORT = 3000;
+// Render mate dynamic port ane local mate 3000
+const PORT = process.env.PORT || 3000;
 
-// XAMPP Default Connection (User: root, Password: empty)
+// Aiven Cloud Database Connection Configuration (Environment variables thi values lese)
 const dbConfig = {
-    host: 'mysql-2c0f57b3-ajson449-5133.i.aivencloud.com',       // Example: mysql-xyz.aivencloud.com
-    user: 'avnadmin',       // Example: avnadmin
-    password: 'AVNS_1P4K62qVyHzDs_9tW1P', // Tamaro password
-    database: 'defaultdb',         // Database name
-    port: 15886,             // Aiven no port number (e.g., 18520)
+    host: process.env.DB_HOST || 'mysql-2c0f57b3-ajson449-5133.i.aivencloud.com',
+    user: process.env.DB_USER || 'avnadmin',
+    password: process.env.DB_PASS || 'AVNS_1P4K62qVyHzDs_9tW1P',
+    database: process.env.DB_NAME || 'defaultdb',
+    port: process.env.DB_PORT || 15886,
     ssl: {
-        rejectUnauthorized: false  // Aiven connection mate SSL jaruri che
+        rejectUnauthorized: false
     }
 };
 
@@ -127,5 +132,5 @@ app.delete('/api/messages/:id', (req, res) => {
 
 // Server Start
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
