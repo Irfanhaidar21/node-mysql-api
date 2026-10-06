@@ -1,17 +1,47 @@
 const express = require('express');
-const cors = require('cors'); // 1. CORS require karyu
+const cors = require('cors');
 const mysql = require('mysql2');
+const admin = require('firebase-admin');
 
 const app = express();
 
-// 2. CORS middleware enable karyu jethi frontend thi API call thaye tyare error na aave
 app.use(cors());
 app.use(express.json());
 
-// Render mate dynamic port ane local mate 3000
 const PORT = process.env.PORT || 3000;
 
-// Aiven Cloud Database Connection Configuration (Environment variables thi values lese)
+// ============================================================
+// FIREBASE ADMIN SETUP
+// ============================================================
+
+try {
+    admin.initializeApp({
+        credential: admin.credential.cert({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+
+            privateKey: process.env.FIREBASE_PRIVATE_KEY
+                ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+                : undefined,
+        }),
+    });
+
+    console.log('Firebase Admin initialized successfully!');
+} catch (error) {
+    console.error(
+        'Firebase Admin initialization failed:',
+        error.message
+    );
+}
+
+const messaging = admin.messaging();
+
+
+// ============================================================
+// MYSQL CONFIG
+// ============================================================
+
 const dbConfig = {
     host: process.env.DB_HOST || 'mysql-2c0f57b3-ajson449-5133.i.aivencloud.com',
     user: process.env.DB_USER || 'avnadmin',
@@ -23,114 +53,422 @@ const dbConfig = {
     }
 };
 
+// ============================================================
+// MYSQL CONNECTION
+// ============================================================
+
 const connection = mysql.createConnection(dbConfig);
 
-// Database ane Table Automatic Setup karva mate
 connection.connect((err) => {
+
     if (err) {
-        console.error('Database connection failed:', err);
+        console.error(
+            'Database connection failed:',
+            err.message
+        );
+
         return;
     }
-    console.log('Connected to MySQL Server successfully!');
 
-    // 1. Create Database if not exists
-    connection.query('CREATE DATABASE IF NOT EXISTS node_crud_db', (err) => {
-        if (err) throw err;
-        
-        // 2. Connect to the specific database
-        connection.changeUser({ database: 'node_crud_db' }, (err) => {
-            if (err) throw err;
-            
-            // 3. Create Table if not exists
-            const createTableQuery = `
-                CREATE TABLE IF NOT EXISTS messages (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL,
-                    email VARCHAR(255) NOT NULL,
-                    subject VARCHAR(255) NOT NULL,
-                    message TEXT NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            `;
-            connection.query(createTableQuery, (err) => {
-                if (err) throw err;
-                
-                // 4. Check if Table is empty, then insert Demo Data
-                connection.query('SELECT COUNT(*) as count FROM messages', (err, results) => {
-                    if (err) throw err;
-                    if (results[0].count === 0) {
-                        const demoQuery = `
-                            INSERT INTO messages (id, name, email, subject, message, created_at) 
-                            VALUES (13, 'Zbhdjdj', 'bsbdh@gmail.com', 'Jdhdhdbhd', 'Ndbbfbfb', '2026-10-02 22:13:39')
-                        `;
-                        connection.query(demoQuery, (err) => {
-                            if (err) throw err;
-                            console.log('Demo data inserted successfully!');
-                        });
-                    }
-                });
-            });
-        });
-    });
+    console.log(
+        'Connected to MySQL successfully!'
+    );
+
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS messages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            subject VARCHAR(255) NOT NULL,
+            message TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `;
+
+    connection.query(
+        createTableQuery,
+        (err) => {
+
+            if (err) {
+                console.error(
+                    'Table creation error:',
+                    err.message
+                );
+
+                return;
+            }
+
+            console.log(
+                'Messages table ready!'
+            );
+        }
+    );
 });
 
-// ==================== CRUD API ENDPOINTS ====================
 
-// 1. GET: All Records Read karva mate
+// ============================================================
+// GET ALL MESSAGES
+// ============================================================
+
 app.get('/api/messages', (req, res) => {
-    connection.query('SELECT * FROM messages', (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, data: results });
-    });
+
+    connection.query(
+        'SELECT * FROM messages ORDER BY id DESC',
+
+        (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+            res.json({
+                success: true,
+                data: results
+            });
+
+        }
+    );
+
 });
 
-// 2. GET: Single Record by ID
+
+// ============================================================
+// GET SINGLE MESSAGE
+// ============================================================
+
 app.get('/api/messages/:id', (req, res) => {
+
     const { id } = req.params;
-    connection.query('SELECT * FROM messages WHERE id = ?', [id], (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (results.length === 0) return res.status(404).json({ success: false, message: 'Record not found' });
-        res.json({ success: true, data: results[0] });
-    });
+
+    connection.query(
+        'SELECT * FROM messages WHERE id = ?',
+        [id],
+
+        (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+            if (results.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: 'Record not found'
+                });
+
+            }
+
+            res.json({
+                success: true,
+                data: results[0]
+            });
+
+        }
+    );
+
 });
 
-// 3. POST: Navu Record Add karva mate
+
+// ============================================================
+// POST NEW MESSAGE
+// ============================================================
+
 app.post('/api/messages', (req, res) => {
-    const { name, email, subject, message } = req.body;
-    const query = 'INSERT INTO messages (name, email, subject, message) VALUES (?, ?, ?, ?)';
-    connection.query(query, [name, email, subject, message], (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ 
-            success: true, 
-            message: 'Record created successfully', 
-            insertedId: results.insertId 
+
+    const {
+        name,
+        email,
+        subject,
+        message
+    } = req.body;
+
+
+    // Basic validation
+
+    if (
+        !name ||
+        !email ||
+        !subject ||
+        !message
+    ) {
+
+        return res.status(400).json({
+            success: false,
+            message: 'name, email, subject and message are required'
         });
-    });
+
+    }
+
+
+    const query = `
+        INSERT INTO messages
+        (name, email, subject, message)
+        VALUES (?, ?, ?, ?)
+    `;
+
+
+    connection.query(
+        query,
+        [
+            name,
+            email,
+            subject,
+            message
+        ],
+
+        async (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+
+            const insertedId = results.insertId;
+
+
+            // ==================================================
+            // SEND FCM NOTIFICATION
+            // ==================================================
+
+            try {
+
+                const fcmMessage = {
+
+                    topic: 'new_messages',
+
+                    notification: {
+                        title: 'New Message Received',
+
+                        body: `${name}: ${subject}`
+                    },
+
+                    data: {
+
+                        type: 'new_message',
+
+                        messageId: String(insertedId),
+
+                        name: String(name),
+
+                        email: String(email),
+
+                        subject: String(subject)
+                    },
+
+                    android: {
+
+                        priority: 'high',
+
+                        notification: {
+
+                            channelId: 'new_messages_channel',
+
+                            sound: 'default',
+
+                            priority: 'high'
+                        }
+                    }
+                };
+
+
+                const firebaseResponse =
+                    await messaging.send(fcmMessage);
+
+
+                console.log(
+                    'FCM notification sent:',
+                    firebaseResponse
+                );
+
+
+                return res.status(201).json({
+
+                    success: true,
+
+                    message:
+                        'Record created and notification sent',
+
+                    insertedId: insertedId,
+
+                    notificationSent: true
+
+                });
+
+
+            } catch (fcmError) {
+
+                console.error(
+                    'FCM notification failed:',
+                    fcmError.message
+                );
+
+
+                // Record MySQLમાં successfully insert થયો છે,
+                // પરંતુ notification મોકલવામાં error આવ્યો.
+
+                return res.status(201).json({
+
+                    success: true,
+
+                    message:
+                        'Record created but notification failed',
+
+                    insertedId: insertedId,
+
+                    notificationSent: false,
+
+                    notificationError:
+                        fcmError.message
+
+                });
+
+            }
+
+        }
+    );
+
 });
 
-// 4. PUT: Existing Record Update karva mate
+
+// ============================================================
+// UPDATE MESSAGE
+// ============================================================
+
 app.put('/api/messages/:id', (req, res) => {
+
     const { id } = req.params;
-    const { name, email, subject, message } = req.body;
-    const query = 'UPDATE messages SET name = ?, email = ?, subject = ?, message = ? WHERE id = ?';
-    connection.query(query, [name, email, subject, message, id], (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (results.affectedRows === 0) return res.status(404).json({ success: false, message: 'Record not found' });
-        res.json({ success: true, message: 'Record updated successfully' });
-    });
+
+    const {
+        name,
+        email,
+        subject,
+        message
+    } = req.body;
+
+
+    const query = `
+        UPDATE messages
+        SET name = ?,
+            email = ?,
+            subject = ?,
+            message = ?
+        WHERE id = ?
+    `;
+
+
+    connection.query(
+        query,
+        [
+            name,
+            email,
+            subject,
+            message,
+            id
+        ],
+
+        (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+
+            if (results.affectedRows === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: 'Record not found'
+                });
+
+            }
+
+
+            res.json({
+                success: true,
+                message: 'Record updated successfully'
+            });
+
+        }
+    );
+
 });
 
-// 5. DELETE: Record Delete karva mate
+
+// ============================================================
+// DELETE MESSAGE
+// ============================================================
+
 app.delete('/api/messages/:id', (req, res) => {
+
     const { id } = req.params;
-    connection.query('DELETE FROM messages WHERE id = ?', [id], (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (results.affectedRows === 0) return res.status(404).json({ success: false, message: 'Record not found' });
-        res.json({ success: true, message: 'Record deleted successfully' });
-    });
+
+
+    connection.query(
+        'DELETE FROM messages WHERE id = ?',
+        [id],
+
+        (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+
+            if (results.affectedRows === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: 'Record not found'
+                });
+
+            }
+
+
+            res.json({
+                success: true,
+                message: 'Record deleted successfully'
+            });
+
+        }
+    );
+
 });
 
-// Server Start
+
+// ============================================================
+// SERVER
+// ============================================================
+
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+
+    console.log(
+        `Server running on port ${PORT}`
+    );
+
 });
