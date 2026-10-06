@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const admin = require('firebase-admin');
-const fs = require('fs');
 
 const app = express();
 
@@ -12,44 +11,37 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP (Safe & Robust)
+// FIREBASE ADMIN SETUP (Using Environment Variables)
 // ============================================================
 
 let messaging = null;
 
 try {
-    let serviceAccount;
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+        
+        // Render પર પ્રાઇવેટ કી ની ન્યૂલાઈન્સ (\n) વ્યવસ્થિત હેન્ડલ થાય તે માટે
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+            privateKey = privateKey.slice(1, -1);
+        }
+        privateKey = privateKey.replace(/\\n/g, '\n');
 
-    // 1. Try Render Secret File path
-    if (fs.existsSync('/etc/secrets/serviceAccountKey.json')) {
-        serviceAccount = require('/etc/secrets/serviceAccountKey.json');
-    } 
-    // 2. Try Local computer path
-    else if (fs.existsSync('./serviceAccountKey.json')) {
-        serviceAccount = require('./serviceAccountKey.json');
-    } 
-    // 3. Fallback to Environment Variables
-    else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-        serviceAccount = {
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-        };
-    }
-
-    if (serviceAccount) {
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: privateKey,
+            })
         });
+        
         messaging = admin.messaging();
-        console.log('Firebase Admin initialized successfully!');
+        console.log('Firebase Admin initialized successfully via Environment Variables!');
     } else {
-        console.warn('Firebase credentials not found. Running without FCM notifications.');
+        console.warn('Firebase credentials environment variables not found. Running without FCM notifications.');
     }
 } catch (error) {
     console.error('Firebase Admin initialization failed:', error.message);
 }
-
 
 // ============================================================
 // MYSQL CONFIG
@@ -100,7 +92,6 @@ connection.connect((err) => {
     });
 });
 
-
 // ============================================================
 // HOME ROUTE (Render Health Check)
 // ============================================================
@@ -111,7 +102,6 @@ app.get('/', (req, res) => {
         message: 'API is running successfully!'
     });
 });
-
 
 // ============================================================
 // GET ALL MESSAGES
@@ -125,7 +115,6 @@ app.get('/api/messages', (req, res) => {
         res.json({ success: true, data: results });
     });
 });
-
 
 // ============================================================
 // GET SINGLE MESSAGE
@@ -143,7 +132,6 @@ app.get('/api/messages/:id', (req, res) => {
         res.json({ success: true, data: results[0] });
     });
 });
-
 
 // ============================================================
 // POST NEW MESSAGE
@@ -172,7 +160,7 @@ app.post('/api/messages', (req, res) => {
         const insertedId = results.insertId;
 
         // ==================================================
-        // SEND FCM NOTIFICATION (Safe Check)
+        // SEND FCM NOTIFICATION
         // ==================================================
 
         try {
@@ -209,7 +197,7 @@ app.post('/api/messages', (req, res) => {
             };
 
             const firebaseResponse = await messaging.send(fcmMessage);
-            console.log('FCM notification sent:', firebaseResponse);
+            console.log('FCM notification sent successfully:', firebaseResponse);
 
             return res.status(201).json({
                 success: true,
@@ -231,7 +219,6 @@ app.post('/api/messages', (req, res) => {
         }
     });
 });
-
 
 // ============================================================
 // UPDATE MESSAGE
@@ -258,7 +245,6 @@ app.put('/api/messages/:id', (req, res) => {
     });
 });
 
-
 // ============================================================
 // DELETE MESSAGE
 // ============================================================
@@ -276,7 +262,6 @@ app.delete('/api/messages/:id', (req, res) => {
         res.json({ success: true, message: 'Record deleted successfully' });
     });
 });
-
 
 // ============================================================
 // SERVER
