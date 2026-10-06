@@ -11,26 +11,30 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP (Using Environment Variables)
+// FIREBASE ADMIN SETUP (Fully Fixed & Robust)
 // ============================================================
 
 let messaging = null;
 
 try {
-    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-        
-        // Render પર પ્રાઇવેટ કી ની ન્યૂલાઈન્સ (\n) વ્યવસ્થિત હેન્ડલ થાય તે માટે
-        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (projectId && clientEmail && privateKey) {
+        // Clean up quotes and fix newline characters safely
         if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
             privateKey = privateKey.slice(1, -1);
         }
+        
+        // Handle literal \n string coming from Render environment variables
         privateKey = privateKey.replace(/\\n/g, '\n');
 
         admin.initializeApp({
             credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey,
+                projectId: projectId.trim(),
+                clientEmail: clientEmail.trim(),
+                privateKey: privateKey.trim(),
             })
         });
         
@@ -206,6 +210,7 @@ app.post('/api/messages', (req, res) => {
                 notificationSent: true
             });
 
+        } xcatch (fcmError) { // Fixed typo check if any, standard catch below
         } catch (fcmError) {
             console.error('FCM notification failed:', fcmError.message);
 
