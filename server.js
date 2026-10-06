@@ -73,7 +73,6 @@ const dbConfig = {
 const connection = mysql.createConnection(dbConfig);
 
 connection.connect((err) => {
-
     if (err) {
         console.error('Database connection failed:', err.message);
         return;
@@ -265,15 +264,16 @@ app.put('/api/messages/:id', (req, res) => {
 // ============================================================
 
 app.delete('/api/messages/:id', (req, res) => {
-    const { id => id } = req.params;
-    connection.query('DELETE FROM messages WHERE id = ?', [req.params.id], (err, results) => {
+    const { id } = req.params;
+    
+    connection.query('DELETE FROM messages WHERE id = ?', [id], (err, results) => {
         if (err) {
             return res.status(500).json({ success: false, error: err.message });
         }
         if (results.affectedRows === 0) {
             return res.status(404).json({ success: false, message: 'Record not found' });
         }
-        res.json({ success: true, message: 'Record successfuly deleted' });
+        res.json({ success: true, message: 'Record deleted successfully' });
     });
 });
 
