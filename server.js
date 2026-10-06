@@ -22,12 +22,9 @@ try {
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
     if (projectId && clientEmail && privateKey) {
-        // Clean up quotes and fix newline characters safely
         if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
             privateKey = privateKey.slice(1, -1);
         }
-        
-        // Handle literal \n string coming from Render environment variables
         privateKey = privateKey.replace(/\\n/g, '\n');
 
         admin.initializeApp({
@@ -210,7 +207,6 @@ app.post('/api/messages', (req, res) => {
                 notificationSent: true
             });
 
-        } xcatch (fcmError) { // Fixed typo check if any, standard catch below
         } catch (fcmError) {
             console.error('FCM notification failed:', fcmError.message);
 
