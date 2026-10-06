@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const admin = require('firebase-admin');
+const fs = require('fs');
 
 const app = express();
 
@@ -11,13 +12,30 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP
+// FIREBASE ADMIN SETUP (3-Layer Safe Fallback)
 // ============================================================
 
 try {
-    const serviceAccount = process.env.NODE_ENV === 'production'
-        ? require('/etc/secrets/serviceAccountKey.json') // Render Secret File path
-        : require('./serviceAccountKey.json');         // Local computer path
+    let serviceAccount;
+
+    // 1. Try Render Secret File Path
+    if (fs.existsSync('/etc/secrets/serviceAccountKey.json')) {
+        serviceAccount = require('/etc/secrets/serviceAccountKey.json');
+    } 
+    // 2. Try Local Computer Path
+    else if (fs.existsSync('./serviceAccountKey.json')) {
+        serviceAccount = require('./serviceAccountKey.json');
+    } 
+    // 3. Fallback to Environment Variables
+    else {
+        serviceAccount = {
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY
+                ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+                : undefined,
+        };
+    }
 
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
@@ -100,7 +118,6 @@ connection.connect((err) => {
         }
     );
 });
-
 
 // ============================================================
 // GET ALL MESSAGES
