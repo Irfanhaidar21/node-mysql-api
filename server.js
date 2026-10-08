@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 const fs = require('fs');
 
 const app = express();
@@ -69,13 +70,13 @@ function loadServiceAccount() {
 try {
     const serviceAccount = loadServiceAccount();
 
-    if (!admin.apps.length) {
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+    if (!getApps().length) {
+        initializeApp({
+            credential: cert(serviceAccount)
         });
     }
 
-    messaging = admin.messaging();
+    messaging = getMessaging();
     console.log('Firebase Admin initialized successfully! 🔥');
 } catch (error) {
     console.error('Firebase initialization error:', error.message);
