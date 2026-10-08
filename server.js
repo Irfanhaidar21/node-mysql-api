@@ -11,35 +11,28 @@ app.use(express.json());
 const PORT = process.env.PORT || 10000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP (100% BULLETPROOF - NO 'cert' OR 'length' ERROR)
+// FIREBASE ADMIN SETUP (DIRECT CONFIG FROM YOUR JSON)
 // ============================================================
 
 let messaging = null;
 
 try {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY 
-        ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-        : `-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCjOpjtPB9lwHil\nbaaPua0pMu2fwXaFTrL661t5pEDXdLLjrrRYeAOf9pkv8mKrA8OWMqZ78DdNVh4q\n3yxY3sGtUPDNYLDtl+OUqvKAc2vT+66t/Netzn2toDVZ2nc1c4K7A4pcsowuJ0Xe\n+ubKYKSZb4zkbAuguBDrcosl47qGkLs4itydyUVonbutotUY9zdHwdL8SN2kD0UD\n8zJEFr23ac/W+XKrUL1dSlQR5ChWAYtBNZ13AZHIHtMVDbQSUaWekcNgxXx72TGD\ncHPiut+jBUy8tCqZBGmdm1JWz8tl4HMTM1XOAts10manHLW1gnDHhFFa/BxdAjNa\nEOKMr5BBAgMBAAECggEAQTdRz4NUhhp6+ZmQUV9dtJbBAzHQUV3Ku98aOsUqFQtu\nx/JO4wP8asajmNkOnAZSeGm/Q8iLx+3u+rEVLmK93in3NA98UUl857LPVgwHmng1\n6BUb9TkJ1LusZTyYoXYH1wGIoBXEVVJio776RASN7zH3CHK0yJ+SPwgSWW6d4VJB\n6kMsoAdD78SR/u83y9+eWVfn2sOHFMt99JrZG6GQ6XuXjDgeeFIkQNICZVqeDzAM\nB25bREvuhgMJgvhe8UeTgrCV9I4g1ltd3d2whbF1J/uW636GP+iMhJ4AdIK5j6uS\nXCjc5ElDnAtBSJknTxP17EsODyzldYbnqMUH4yZn4wKBgQDMrwlyn1S55fG/fhaE\nwzGWQ5L0QZV11P0EyLgHzKFVJ1U6ANM3dzJOdEhpsWrkIEUYnMlI5+CdqelmNLzx\nH7WSneVqJvGmgCsVg/FiUZZIvjRs3Y6wND9iWSgS74Ku/VXb1CGrrcn3hUebLFVL\nVpgV8TQY0CdbX9hIe8b1+bJ7jwKBgQDMJupnLmCPw1SZApPl+Px/u080bQzGyr/O\SDdy2WVSAd9NM6memEpnUGJxxZmC14LrTXW5TqniTOWoBpF5j84taDfXmB+pJF+7\nTa5B4AqtdE1oOkB4Kkl0nnb7UCNlzHuw0fU/czN6nte3HvOCemAy/ouF+h2b7QiM\nKLKtBLqPLwKBgEF/0dooOoiymMXap4IcpIWdYi1fv2BRpBYf1SRJy2bgi1lgYjbh\noeuRMosAB2CxIutZYOA/s5VAhjv6rGvM5eHhPUTW6YWKhj8AVgJMcXcdxtD/pWWl\nkpL6TOSiWIN+9ja+j3fMyVC4Cc4SRckyEMEUysMV+UI4TZIEagrUuNTpAoGBAIAv\nVzMeXacnILFKew8FPZX+SIdEiacwmyqtEZPdiM7rOgjBjZl1ShKA2K9TQUZ0h1Gz\nu111VRow6mqMZT+M2gqMy7NlY0vS+QEkj2vxfwLWadwt51kMRD8jWNYHxZIfyPKH\ngpQqg4JUxmHG32Nn74tVZMnk+D51oM5Qp5AXzgQlAoGABh7bfP4sMwUQbuJe/7uj\BX7eTzNSlbieqC8SmQ0mbear1VnwdmJlptOQ3s5dfxBBOUkTfSJouQGTIKCme1Jp\nBg5zc7Fsf9wgiJOfJcHvvX2IVkXneCDwjcoTVwbYcLo0vrpn1huaQFdr5CUHmnHP\naL599tr9QtGrg+gf43BI7oY=\n-----END PRIVATE KEY-----`;
+    const privateKey = `-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCjOpjtPB9lwHil\nbaaPua0pMu2fwXaFTrL661t5pEDXdLLjrrRYeAOf9pkv8mKrA8OWMqZ78DdNVh4q\n3yxY3sGtUPDNYLDtl+OUqvKAc2vT+66t/Netzn2toDVZ2nc1c4K7A4pcsowuJ0Xe\n+ubKYKSZb4zkbAuguBDrcosl47qGkLs4itydyUVonbutotUY9zdHwdL8SN2kD0UD\n8zJEFr23ac/W+XKrUL1dSlQR5ChWAYtBNZ13AZHIHtMVDbQSUaWekcNgxXx72TGD\ncHPiut+jBUy8tCqZBGmdm1JWz8tl4HMTM1XOAts10manHLW1gnDHhFFa/BxdAjNa\nEOKMr5BBAgMBAAECggEAQTdRz4NUhhp6+ZmQUV9dtJbBAzHQUV3Ku98aOsUqFQtu\nx/JO4wP8asajmNkOnAZSeGm/Q8iLx+3u+rEVLmK93in3NA98UUl857LPVgwHmng1\n6BUb9TkJ1LusZTyYoXYH1wGIoBXEVVJio776RASN7zH3CHK0yJ+SPwgSWW6d4VJB\n6kMsoAdD78SR/u83y9+eWVfn2sOHFMt99JrZG6GQ6XuXjDgeeFIkQNICZVqeDzAM\nB25bREvuhgMJgvhe8UeTgrCV9I4g1ltd3d2whbF1J/uW636GP+iMhJ4AdIK5j6uS\nXCjc5ElDnAtBSJknTxP17EsODyzldYbnqMUH4yZn4wKBgQDMrwlyn1S55fG/fhaE\nwzGWQ5L0QZV11P0EyLgHzKFVJ1U6ANM3dzJOdEhpsWrkIEUYnMlI5+CdqelmNLzx\nH7WSneVqJvGmgCsVg/FiUZZIvjRs3Y6wND9iWSgS74Ku/VXb1CGrrcn3hUebLFVL\nVpgV8TQY0CdbX9hIe8b1+bJ7jwKBgQDMJupnLmCPw1SZApPl+Px/u080bQzGyr/O\SDdy2WVSAd9NM6memEpnUGJxxZmC14LrTXW5TqniTOWoBpF5j84taDfXmB+pJF+7\Ta5B4AqtdE1oOkB4Kkl0nnb7UCNlzHuw0fU/czN6nte3HvOCemAy/ouF+h2b7QiM\nKLKtBLqPLwKBgEF/0dooOoiymMXap4IcpIWdYi1fv2BRpBYf1SRJy2bgi1lgYjbh\noeuRMosAB2CxIutZYOA/s5VAhjv6rGvM5eHhPUTW6YWKhj8AVgJMcXcdxtD/pWWl\nkpL6TOSiWIN+9ja+j3fMyVC4Cc4SRckyEMEUysMV+UI4TZIEagrUuNTpAoGBAIAv\nVzMeXacnILFKew8FPZX+SIdEiacwmyqtEZPdiM7rOgjBjZl1ShKA2K9TQUZ0h1Gz\nu111VRow6mqMZT+M2gqMy7NlY0vS+QEkj2vxfwLWadwt51kMRD8jWNYHxZIfyPKH\ngpQqg4JUxmHG32Nn74tVZMnk+D51oM5Qp5AXzgQlAoGABh7bfP4sMwUQbuJe/7uj\BX7eTzNSlbieqC8SmQ0mbear1VnwdmJlptOQ3s5dfxBBOUkTfSJouQGTIKCme1Jp\nBg5zc7Fsf9wgiJOfJcHvvX2IVkXneCDwjcoTVwbYcLo0vrpn1huaQFdr5CUHmnHP\naL599tr9QtGrg+gf43BI7oY=\n-----END PRIVATE KEY-----`;
 
-    // સંપૂર્ણ સુરક્ષિત રીત: check કરો કે admin app પેહલેથી છે કે નહીં
     if (!admin.apps.length) {
-        // credential ઓબ્જેક્ટ ડાયરેક્ટ સેટ કરવાને બદલે સેફલી પાસ કરીએ
-        const serviceAccount = {
-            projectId: process.env.FIREBASE_PROJECT_ID || "my-messages-notification",
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL || "firebase-adminsdk-fbsvc@my-messages-notification.iam.gserviceaccount.com",
-            privateKey: privateKey,
-        };
-
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert({
+                projectId: "my-messages-notification",
+                clientEmail: "firebase-adminsdk-fbsvc@my-messages-notification.iam.gserviceaccount.com",
+                privateKey: privateKey,
+            })
         });
     }
 
     messaging = admin.messaging();
-    console.log('Firebase Admin initialized successfully! 🎉');
+    console.log('Firebase Admin initialized successfully! 🔥');
 } catch (error) {
-    console.error('Firebase Admin initialization bypassed safely:', error.message);
-    messaging = null; // ક્રેશ થવા દેશે નહીં
+    console.error('Firebase initialization error:', error.message);
 }
 
 
