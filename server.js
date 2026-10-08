@@ -11,6 +11,9 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
+// Flutter app ma banavelo channel id (same hovo j joiye)
+const ANDROID_CHANNEL_ID = 'new_messages_channel';
+
 // ============================================================
 // STARTUP CHECK (value nahi, fakt set che ke nai e batave)
 // ============================================================
@@ -170,10 +173,26 @@ app.post('/api/messages', (req, res) => {
             try {
                 await messaging.send({
                     topic: 'new_messages',
+
                     notification: {
                         title: 'New Message Received',
                         body: `${name}: ${subject}`
                     },
+
+                    // WhatsApp jevi heads-up (pop-up) notification mate
+                    android: {
+                        priority: 'high',
+                        ttl: 3600 * 1000,
+                        notification: {
+                            channelId: ANDROID_CHANNEL_ID,
+                            priority: 'high',
+                            defaultSound: true,
+                            defaultVibrateTimings: true,
+                            visibility: 'public',
+                            notificationCount: 1
+                        }
+                    },
+
                     data: {
                         type: 'new_message',
                         messageId: String(insertedId),
