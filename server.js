@@ -306,6 +306,4 @@ app.delete('/api/messages/:id', (req, res) => {
 });
 
 
-// ============================================================
-// SERVER
-} // <--- (Wait, ensure correct bracket closing for app.listen)
+
