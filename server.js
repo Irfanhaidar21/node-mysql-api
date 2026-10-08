@@ -1,8 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const { initializeApp, cert, getApps } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
+const admin = require('firebase-admin');
 
 const app = express();
 
@@ -12,41 +11,32 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 // ============================================================
-// FIREBASE ADMIN SETUP (Modular & 100% Working)
+// FIREBASE ADMIN SETUP (USING SECRET FILE)
 // ============================================================
 
 try {
-    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-        
-        if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-            privateKey = privateKey.slice(1, -1);
-        }
-        privateKey = privateKey.replace(/\\n/g, '\n');
+    // Render પર સિક્રેટ ફાઇલ આ જ પાથ પર રીડ થશે
+    admin.initializeApp({
+        credential: admin.credential.cert(require('./firebase-service-account.json')),
+    });
 
-        if (!getApps().length) {
-            initializeApp({
-                credential: cert({
-                    projectId: process.env.FIREBASE_PROJECT_ID.trim(),
-                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL.trim(),
-                    privateKey: privateKey.trim()
-                })
-            });
-        }
-        
-        console.log('Firebase Admin initialized successfully!');
-    } else {
-        console.warn('⚠️ Warning: Firebase environment variables are missing.');
-    }
+    console.log('Firebase Admin initialized successfully!');
 } catch (error) {
-    console.error('Firebase Admin initialization failed:', error.message);
+    console.error(
+        'Firebase Admin initialization failed:',
+        error.message
+    );
 }
+
+const messaging = admin.messaging();
+
+
 // ============================================================
 // MYSQL CONFIG
 // ============================================================
 
 const dbConfig = {
-    host: process.env.DB_HOST || 'mysql-2c0f57b3-ajson449-5133.i.aivencloud.com',
+    host: process.env.DB_HOST || '://aivencloud.com',
     user: process.env.DB_USER || 'avnadmin',
     password: process.env.DB_PASS || 'AVNS_1P4K62qVyHzDs_9tW1P',
     database: process.env.DB_NAME || 'defaultdb',
@@ -63,11 +53,19 @@ const dbConfig = {
 const connection = mysql.createConnection(dbConfig);
 
 connection.connect((err) => {
+
     if (err) {
-        console.error('Database connection failed:', err.message);
+        console.error(
+            'Database connection failed:',
+            err.message
+        );
+
         return;
     }
-    console.log('Connected to MySQL successfully!');
+
+    console.log(
+        'Connected to MySQL successfully!'
+    );
 
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS messages (
@@ -80,13 +78,24 @@ connection.connect((err) => {
         )
     `;
 
-    connection.query(createTableQuery, (err) => {
-        if (err) {
-            console.error('Table creation error:', err.message);
-            return;
+    connection.query(
+        createTableQuery,
+        (err) => {
+
+            if (err) {
+                console.error(
+                    'Table creation error:',
+                    err.message
+                );
+
+                return;
+            }
+
+            console.log(
+                'Messages table ready!'
+            );
         }
-        console.log('Messages table ready!');
-    });
+    );
 });
 
 
@@ -95,12 +104,29 @@ connection.connect((err) => {
 // ============================================================
 
 app.get('/api/messages', (req, res) => {
-    connection.query('SELECT * FROM messages ORDER BY id DESC', (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
+
+    connection.query(
+        'SELECT * FROM messages ORDER BY id DESC',
+
+        (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+            res.json({
+                success: true,
+                data: results
+            });
+
         }
-        res.json({ success: true, data: results });
-    });
+    );
+
 });
 
 
@@ -109,154 +135,150 @@ app.get('/api/messages', (req, res) => {
 // ============================================================
 
 app.get('/api/messages/:id', (req, res) => {
+
     const { id } = req.params;
-    connection.query('SELECT * FROM messages WHERE id = ?', [id], (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
+
+    connection.query(
+        'SELECT * FROM messages WHERE id = ?',
+        [id],
+
+        (err, results) => {
+
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+            if (results.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message: 'Record not found'
+                });
+
+            }
+
+            res.json({
+                success: true,
+                data: results[0]
+            });
+
         }
-        if (results.length === 0) {
-            return res.status(404).json({ success: false, message: 'Record not found' });
-        }
-        res.json({ success: true, data: results[0] });
-    });
+    );
+
 });
 
 
 // ============================================================
-// POST NEW MESSAGE
+// POST NEW MESSAGE & SEND FCM NOTIFICATION
 // ============================================================
 
 app.post('/api/messages', (req, res) => {
-    const { name, email, subject, message } = req.body;
 
-    if (!name || !email || !subject || !message) {
+    const {
+        name,
+        email,
+        subject,
+        message
+    } = req.body;
+
+
+    // Basic validation
+    if (
+        !name ||
+        !email ||
+        !subject ||
+        !message
+    ) {
+
         return res.status(400).json({
             success: false,
             message: 'name, email, subject and message are required'
         });
+
     }
 
+
     const query = `
-        INSERT INTO messages (name, email, subject, message)
+        INSERT INTO messages
+        (name, email, subject, message)
         VALUES (?, ?, ?, ?)
     `;
 
-    connection.query(query, [name, email, subject, message], async (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
-        }
 
-        const insertedId = results.insertId;
+    connection.query(
+        query,
+        [
+            name,
+            email,
+            subject,
+            message
+        ],
 
-        // ==================================================
-        // SEND FCM NOTIFICATION (If Configured)
-        // ==================================================
-        if (!messaging) {
-            return res.status(201).json({
-                success: true,
-                message: 'Record created successfully (Notifications not configured)',
-                insertedId: insertedId,
-                notificationSent: false
-            });
-        }
+        async (err, results) => {
 
-        try {
-            const fcmMessage = {
-                topic: 'new_messages',
-                notification: {
-                    title: 'New Message Received',
-                    body: `${name}: ${subject}`
-                },
-                data: {
-                    type: 'new_message',
-                    messageId: String(insertedId),
-                    name: String(name),
-                    email: String(email),
-                    subject: String(subject)
-                },
-                android: {
-                    priority: 'high',
+            if (err) {
+
+                return res.status(500).json({
+                    success: false,
+                    error: err.message
+                });
+
+            }
+
+
+            const insertedId = results.insertId;
+
+
+            // ==================================================
+            // SEND FCM NOTIFICATION
+            // ==================================================
+
+            try {
+
+                const fcmMessage = {
+                    topic: 'new_messages',
                     notification: {
-                        channelId: 'new_messages_channel',
-                        sound: 'default',
-                        priority: 'high'
+                        title: 'New Message Received',
+                        body: `${name}: ${subject}`
+                    },
+                    data: {
+                        type: 'new_message',
+                        messageId: String(insertedId)
                     }
-                }
-            };
+                };
 
-            const firebaseResponse = await messaging.send(fcmMessage);
-            console.log('FCM notification sent:', firebaseResponse);
+                // FCM નોટિફિકેશન મોકલો
+                const response = await messaging.send(fcmMessage);
+                console.log('Successfully sent FCM message:', response);
 
-            return res.status(201).json({
-                success: true,
-                message: 'Record created and notification sent',
-                insertedId: insertedId,
-                notificationSent: true
-            });
+                return res.status(201).json({
+                    success: true,
+                    message: 'Message saved and notification sent successfully',
+                    data: { id: insertedId }
+                });
 
-        } catch (fcmError) {
-            console.error('FCM notification failed:', fcmError.message);
-            return res.status(201).json({
-                success: true,
-                message: 'Record created but notification failed',
-                insertedId: insertedId,
-                notificationSent: false,
-                notificationError: fcmError.message
-            });
+            } catch (fcmError) {
+                console.error('FCM Notification sending failed:', fcmError.message);
+                
+                // ડેટાબેઝમાં મેસેજ સેવ થઇ ગયો હોવાથી success true જ મોકલીશું
+                return res.status(201).json({
+                    success: true,
+                    message: 'Message saved, but notification failed to send',
+                    data: { id: insertedId },
+                    fcmError: fcmError.message
+                });
+            }
         }
-    });
+    );
+
 });
 
-
-// ============================================================
-// UPDATE MESSAGE
-// ============================================================
-
-app.put('/api/messages/:id', (req, res) => {
-    const { id } = req.params;
-    const { name, email, subject, message } = req.body;
-
-    const query = `
-        UPDATE messages
-        SET name = ?, email = ?, subject = ?, message = ?
-        WHERE id = ?
-    `;
-
-    connection.query(query, [name, email, subject, message, id], (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
-        }
-        if (results.affectedRows === 0) {
-            return res.status(404).json({ success: false, message: 'Record not found' });
-        }
-        res.json({ success: true, message: 'Record updated successfully' });
-    });
-});
-
-
-// ============================================================
-// DELETE MESSAGE
-// ============================================================
-
-app.delete('/api/messages/:id', (req, res) => {
-    const { id } = req.params;
-
-    connection.query('DELETE FROM messages WHERE id = ?', [id], (err, results) => {
-        if (err) {
-            return res.status(500).json({ success: false, error: err.message });
-        }
-        if (results.affectedRows === 0) {
-            return res.status(404).json({ success: false, message: 'Record not found' });
-        }
-        res.json({ success: true, message: 'Record deleted successfully' });
-    });
-});
-
-
-// ============================================================
-// SERVER
-// ============================================================
-
+// SERVER START
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
